@@ -8,6 +8,13 @@
       "when": 1777861297148,
       "tag": "0000_safe_paibok",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1778198400000,
+      "tag": "0001_rename_birkdale_to_springfield",
+      "breakpoints": true
     }
   ]
 }

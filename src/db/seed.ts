@@ -25,7 +25,7 @@ const COURSES = [
   { name: "Tega Cay" },
   { name: "Tradition" },
   { name: "Red Bridge" },
-  { name: "Birkdale", notes: "may change" },
+  { name: "Springfield" },
 ];
 
 const ROUNDS: Array<{
@@ -87,7 +87,7 @@ const ROUNDS: Array<{
   {
     number: "5",
     label: "Round 5",
-    courseName: "Birkdale",
+    courseName: "Springfield",
     windowStart: "2026-09-01",
     windowEnd: "2026-09-30",
     matchups: [

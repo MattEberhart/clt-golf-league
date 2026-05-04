@@ -144,8 +144,6 @@ The brief said "make a reasonable call and note it." Notes:
 - **Player handicaps stored as TEXT for raw values** because the spec showed
   one-decimal precision (`23.5`, `2.8`); SQLite REAL would round-trip fine but
   TEXT preserves the exact spec representation. Adjusted handicaps are integers.
-- **Round 5 venue ("Birkdale, may change") is stored in `courses.notes`** so
-  the schedule page can render the parenthetical without hard-coding.
 - **`submitted_at` is an ISO string in UTC.** Display formatting happens in
   `America/New_York` via `date-fns` `format`. Round windows are stored as
   date-only strings and compared lexicographically.
