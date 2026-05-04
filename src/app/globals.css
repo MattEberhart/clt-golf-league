@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* Mid-century modern palette: cream, walnut, muted teal accent. */
+:root {
+  --color-cream: #f5efe6;
+  --color-cream-soft: #ede4d3;
+  --color-walnut: #3e2c1c;
+  --color-walnut-soft: #6b5640;
+  --color-walnut-faint: #d8c8b3;
+  --color-accent: #3a7d7b;
+  --color-accent-deep: #2c5e5d;
+}
+
+@theme inline {
+  --color-background: var(--color-cream);
+  --color-foreground: var(--color-walnut);
+  --color-cream: var(--color-cream);
+  --color-cream-soft: var(--color-cream-soft);
+  --color-walnut: var(--color-walnut);
+  --color-walnut-soft: var(--color-walnut-soft);
+  --color-walnut-faint: var(--color-walnut-faint);
+  --color-accent: var(--color-accent);
+  --color-accent-deep: var(--color-accent-deep);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+}
+
+html,
+body {
+  background: var(--color-cream);
+  color: var(--color-walnut);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--color-accent-deep);
+}
+a:hover {
+  text-decoration: underline;
+}
+
+table {
+  font-variant-numeric: tabular-nums;
+}
