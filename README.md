@@ -102,7 +102,7 @@ Standings (and championship seeding) apply this chain in order:
 1. **Wins** (descending)
 2. **Head-to-head** between the tied teams. Two-team tie → direct match winner.
    Three-or-more tie → mini-table of W-L among only those teams.
-3. **Cumulative MoV** (sum of holes-up across all wins, descending)
+3. **Net MoV** (holes-up summed on wins, subtracted on losses, descending)
 4. **Team #** ascending — deterministic placeholder. A real tiebreaker would
    require a playoff; the README is the canonical place that says so.
 

@@ -2,6 +2,7 @@ import { format, parseISO } from "date-fns";
 import { getScheduleData } from "@/lib/queries";
 import { annotateRoundStatus } from "@/lib/schedule";
 import { reseedChampIfNeeded, champSlotLabel } from "@/lib/championship";
+import { teamLabel } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ export default async function SchedulePage() {
                         <span className="text-walnut-soft">vs</span>
                         <TeamLabel team={b} highlighted={winner?.id === b.id} />
                         <span className="ml-auto text-walnut-soft text-xs">
-                          {result ? `${winner?.number} won, ${result.mov} UP` : "—"}
+                          {result ? `${teamLabel(winner)} won, ${result.mov} UP` : "—"}
                         </span>
                       </li>
                     );
@@ -108,7 +109,7 @@ function TeamLabel({
           : "text-walnut"
       }
     >
-      Team {team.number}
+      {teamLabel(team)}
     </span>
   );
 }

@@ -6,6 +6,7 @@ import {
   formatWinPct,
   type TeamStanding,
 } from "@/lib/standings";
+import { teamLabel } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,6 @@ export default async function StandingsPage({ searchParams }: PageProps) {
           <tr className="text-left text-walnut-soft border-b border-walnut">
             <th className="py-2 font-normal w-8">#</th>
             <SortableHeader label="Team" sortKey="team" current={sort} className="font-normal" />
-            <th className="py-2 font-normal text-walnut-soft hidden sm:table-cell">Players</th>
             <SortableHeader label="W" sortKey="wins" current={sort} className="text-right w-12 font-normal" />
             <th className="py-2 font-normal text-right w-12">L</th>
             <SortableHeader label="Win%" sortKey="winpct" current={sort} className="text-right w-16 font-normal" />
@@ -51,11 +51,8 @@ export default async function StandingsPage({ searchParams }: PageProps) {
               <td className="py-3 text-walnut-soft">{idx + 1}</td>
               <td className="py-3">
                 <Link href={`/teams#team-${s.team.number}`} className="no-underline hover:underline">
-                  Team {s.team.number}
+                  {teamLabel(s.team)}
                 </Link>
-              </td>
-              <td className="py-3 text-walnut-soft hidden sm:table-cell text-xs">
-                {s.team.player1Name} / {s.team.player2Name}
               </td>
               <td className="py-3 text-right">{s.wins}</td>
               <td className="py-3 text-right text-walnut-soft">{s.losses}</td>

@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { submitResultAction, type SubmitState } from "./actions";
+import { teamLabel } from "@/lib/teams";
 
 type Team = { id: number; number: number; player1Name: string; player2Name: string };
 type Round = { id: number; number: string; label: string };
@@ -88,7 +89,7 @@ export function SubmitForm({ rounds, matchups, teams, defaultRoundId }: Props) {
             const b = teamById.get(m.teamBId);
             return (
               <option key={m.id} value={m.id}>
-                Match {m.slot}: Team {a?.number} vs Team {b?.number}
+                Match {m.slot}: {teamLabel(a)} vs {teamLabel(b)}
               </option>
             );
           })}
@@ -149,12 +150,7 @@ function RadioOption({ value, team }: { value: number; team: Team }) {
   return (
     <label className="flex items-baseline gap-3 border border-walnut-faint bg-cream-soft px-3 py-2 cursor-pointer rounded-[2px] hover:border-accent">
       <input type="radio" name="winnerTeamId" value={value} required className="accent-accent" />
-      <span className="text-walnut">
-        Team {team.number}{" "}
-        <span className="text-walnut-soft text-xs">
-          {team.player1Name} / {team.player2Name}
-        </span>
-      </span>
+      <span className="text-walnut">{teamLabel(team)}</span>
     </label>
   );
 }

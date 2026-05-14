@@ -6,12 +6,13 @@ export type TeamStanding = {
   losses: number;
   played: number;
   winPct: number | null; // null when 0 games played
-  totalMov: number; // sum of MoV across wins
+  totalMov: number; // net MoV: + on wins, - on losses; sums to 0 league-wide
 };
 
 /**
- * Per-team W/L and total MoV (margin of victory summed across wins).
- * MoV is only added on wins, mirroring the spec's tiebreaker definition.
+ * Per-team W/L and net MoV (margin of victory added on wins, subtracted on
+ * losses). Because every result is one team's +MoV and another's -MoV, the
+ * column sums to 0 across the league.
  */
 export function computeStandings(
   teams: Team[],
@@ -39,6 +40,7 @@ export function computeStandings(
     if (l) {
       l.losses += 1;
       l.played += 1;
+      l.totalMov -= r.mov;
     }
   }
   for (const s of byId.values()) {
@@ -53,7 +55,7 @@ export function computeStandings(
  *   2. Head-to-head record between the tied teams
  *      (if exactly two teams tied, whoever won the direct match;
  *       if more than two, mini-table of W-L among only those teams)
- *   3. Cumulative Margin of Victory (sum of MoV across all wins, desc)
+ *   3. Net Margin of Victory (MoV summed on wins, subtracted on losses, desc)
  *   4. Team # ascending — deterministic placeholder; a real tiebreaker
  *      would require a playoff (noted in README).
  */

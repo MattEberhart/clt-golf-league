@@ -4,6 +4,7 @@ import { getScheduleData } from "@/lib/queries";
 import { rankTeams, formatRecord, formatWinPct } from "@/lib/standings";
 import { getCurrentRound } from "@/lib/schedule";
 import { reseedChampIfNeeded } from "@/lib/championship";
+import { teamLabel } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -66,10 +67,7 @@ export default async function HomePage() {
                     href={`/teams#team-${s.team.number}`}
                     className="no-underline hover:underline"
                   >
-                    Team {s.team.number}
-                    <span className="text-walnut-soft ml-2 text-xs">
-                      {lastName(s.team.player1Name)} / {lastName(s.team.player2Name)}
-                    </span>
+                    {teamLabel(s.team)}
                   </Link>
                 </td>
                 <td className="py-2.5 text-right">{formatRecord(s)}</td>
@@ -96,7 +94,7 @@ export default async function HomePage() {
               return (
                 <li key={r.id} className="border-b border-walnut-faint/60 pb-2">
                   <span className="text-walnut">
-                    Team {winner?.number} def. Team {loser?.number}
+                    {teamLabel(winner)} def. {teamLabel(loser)}
                     <span className="text-walnut-soft"> · {formatMov(r.mov)}</span>
                   </span>
                   <span className="text-walnut-soft block text-xs mt-0.5">
@@ -137,8 +135,4 @@ function formatWindow(start: string, end: string): string {
 
 function formatMov(mov: number): string {
   return `${mov} UP`;
-}
-
-function lastName(full: string): string {
-  return full.replace(/"/g, "").trim().split(/\s+/).slice(-1)[0];
 }

@@ -1,5 +1,6 @@
 import { format, parseISO } from "date-fns";
 import { getScheduleData } from "@/lib/queries";
+import { teamLabel } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export default async function ResultsPage() {
                   return (
                     <li key={r.id} className="py-3 flex flex-wrap items-baseline gap-x-3">
                       <span className="text-walnut">
-                        Team {winner?.number} def. Team {loser?.number}
+                        {teamLabel(winner)} def. {teamLabel(loser)}
                         <span className="text-walnut-soft"> · {r.mov} UP</span>
                       </span>
                       <span className="ml-auto text-xs text-walnut-soft">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { getScheduleData } from "@/lib/queries";
 import { computeStandings, formatRecord } from "@/lib/standings";
+import { teamLabel } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function TeamsPage() {
           return (
             <section key={team.id} id={`team-${team.number}`} className="scroll-mt-24">
               <div className="flex items-baseline justify-between border-b border-walnut pb-2">
-                <h2 className="text-xl text-walnut">Team {team.number}</h2>
+                <h2 className="text-xl text-walnut">{teamLabel(team)}</h2>
                 <span className="text-sm text-walnut-soft">
                   {standing ? formatRecord(standing) : "0-0"} · MoV {standing?.totalMov ?? 0}
                 </span>
@@ -74,7 +75,7 @@ export default async function TeamsPage() {
                             {won ? "W" : "L"}
                           </span>
                           <span className="text-walnut">
-                            vs Team {opponent?.number}
+                            vs {teamLabel(opponent)}
                           </span>
                           <span className="text-walnut-soft text-xs">
                             {round?.label}
