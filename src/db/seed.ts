@@ -131,7 +131,7 @@ async function main() {
 
   // Courses
   for (const c of COURSES) {
-    await db.insert(schema.courses).values({ name: c.name, notes: "notes" in c ? c.notes : null });
+    await db.insert(schema.courses).values({ name: c.name });
   }
 
   // Rounds + matchups
