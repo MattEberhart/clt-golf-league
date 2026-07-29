@@ -46,12 +46,11 @@ UPDATE `player_handicaps` SET `raw_hcp` = '__TODO__'
  WHERE `effective_from_round` = '4'
    AND `season_id` = (SELECT `id` FROM `seasons` WHERE `year` = 2026)
    AND `player_id` = (SELECT `id` FROM `players` WHERE `name` = 'Joe Abrahamson');
-
--- Ben Berger and "Slick" Nick Lloyd have no Round 4 row — their adjusted
--- handicap did not change. If their raw values moved, insert rows instead:
---
--- INSERT INTO `player_handicaps`
---   (`season_id`, `player_id`, `raw_hcp`, `adj_hcp`, `effective_from_round`, `note`, `created_at`)
--- SELECT (SELECT `id` FROM `seasons` WHERE `year` = 2026), `id`, '__TODO__', 0, '4',
---        'Mid-season re-rate', '2026-07-15T00:00:00.000Z'
---   FROM `players` WHERE `name` = 'Ben Berger';
+UPDATE `player_handicaps` SET `raw_hcp` = '__TODO__'
+ WHERE `effective_from_round` = '4'
+   AND `season_id` = (SELECT `id` FROM `seasons` WHERE `year` = 2026)
+   AND `player_id` = (SELECT `id` FROM `players` WHERE `name` = 'Ben Berger');
+UPDATE `player_handicaps` SET `raw_hcp` = '__TODO__'
+ WHERE `effective_from_round` = '4'
+   AND `season_id` = (SELECT `id` FROM `seasons` WHERE `year` = 2026)
+   AND `player_id` = (SELECT `id` FROM `players` WHERE `name` = '"Slick" Nick Lloyd');

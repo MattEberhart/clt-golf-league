@@ -29,6 +29,13 @@
       "when": 1785292549017,
       "tag": "0003_drop_inline_player_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785292550017,
+      "tag": "0004_rerate_rows_for_unchanged_adj",
+      "breakpoints": true
     }
   ]
 }

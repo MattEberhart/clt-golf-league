@@ -3,7 +3,7 @@ loadEnv({ path: ".env.local" });
 loadEnv();
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as schema from "./schema";
 
 const url = process.env.TURSO_DATABASE_URL;
@@ -67,6 +67,10 @@ const HANDICAPS: Array<{
       ["Matt Eberhart", null, 16],
       ["David Henderson", null, 23],
       ["Joe Abrahamson", null, 19],
+      // Adjusted number unchanged, but the re-rate moved their raw handicap —
+      // raw pending, so these carry a Round 4 row too.
+      ["Ben Berger", null, 0],
+      [`"Slick" Nick Lloyd`, null, 8],
     ],
   },
 ];
@@ -160,20 +164,25 @@ const ROUNDS: Array<{
 async function main() {
   console.log("Seeding…");
 
-  // Idempotent guard: if the season already exists, assume seeded.
+  // Idempotent guard on teams rather than seasons: migration 0002 inserts the
+  // 2026 season row, so a freshly migrated database already has one.
+  const existingTeams = await db.select().from(schema.teams);
+  if (existingTeams.length > 0) {
+    console.log("League already seeded — exiting.");
+    return;
+  }
+
   const existingSeason = await db
     .select()
     .from(schema.seasons)
     .where(eq(schema.seasons.year, SEASON.year));
-  if (existingSeason.length > 0) {
-    console.log("Season already seeded — exiting.");
-    return;
-  }
-
-  const [season] = await db
-    .insert(schema.seasons)
-    .values({ year: SEASON.year, name: SEASON.name, isCurrent: true })
-    .returning({ id: schema.seasons.id });
+  const [season] =
+    existingSeason.length > 0
+      ? existingSeason
+      : await db
+          .insert(schema.seasons)
+          .values({ year: SEASON.year, name: SEASON.name, isCurrent: true })
+          .returning({ id: schema.seasons.id });
 
   // Players, then season rosters.
   const playerIdByName = new Map<string, number>();
@@ -242,8 +251,8 @@ async function main() {
 
     let slot = 1;
     for (const [aNum, bNum] of r.matchups) {
-      const teamA = await team(aNum);
-      const teamB = await team(bNum);
+      const teamA = await team(season.id, aNum);
+      const teamB = await team(season.id, bNum);
       await db.insert(schema.matchups).values({
         roundId,
         teamAId: teamA.id,
@@ -256,17 +265,25 @@ async function main() {
 
   // Seed two existing Round 1 results: T3 def. T4 (3 UP), T2 def. T5 (3 UP)
   const round1 = (
-    await db.select().from(schema.rounds).where(eq(schema.rounds.number, "1"))
+    await db
+      .select()
+      .from(schema.rounds)
+      .where(
+        and(
+          eq(schema.rounds.seasonId, season.id),
+          eq(schema.rounds.number, "1"),
+        ),
+      )
   )[0];
   const round1Matchups = await db
     .select()
     .from(schema.matchups)
     .where(eq(schema.matchups.roundId, round1.id));
 
-  const t2 = await team(2);
-  const t3 = await team(3);
-  const t4 = await team(4);
-  const t5 = await team(5);
+  const t2 = await team(season.id, 2);
+  const t3 = await team(season.id, 3);
+  const t4 = await team(season.id, 4);
+  const t5 = await team(season.id, 5);
 
   const m34 = round1Matchups.find(
     (m) => (m.teamAId === t3.id && m.teamBId === t4.id) || (m.teamAId === t4.id && m.teamBId === t3.id),
@@ -298,11 +315,13 @@ async function main() {
   console.log("Seed complete.");
 }
 
-async function team(number: number) {
+async function team(seasonId: number, number: number) {
   const rows = await db
     .select()
     .from(schema.teams)
-    .where(eq(schema.teams.number, number));
+    .where(
+      and(eq(schema.teams.seasonId, seasonId), eq(schema.teams.number, number)),
+    );
   return rows[0];
 }
 
