@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
-import { getScheduleData } from "@/lib/queries";
+import { getScheduleData, type PlayerOnTeam } from "@/lib/queries";
+import { roundRangeLabel } from "@/lib/handicaps";
 import { computeStandings, formatRecord } from "@/lib/standings";
 import { teamLabel } from "@/lib/teams";
 
@@ -14,10 +15,22 @@ export default async function TeamsPage() {
   const matchupById = new Map(matchups.map((m) => [m.id, m]));
   const roundById = new Map(rounds.map((r) => [r.id, r]));
   const courseById = new Map(courses.map((c) => [c.id, c]));
+  const roundNumbers = rounds.map((r) => r.number);
+  const reRated = teams.some((t) =>
+    t.players.some((p) => p.priorAdjHcp !== null && p.priorAdjHcp !== p.adjHcp),
+  );
 
   return (
     <div className="pt-10 sm:pt-14">
-      <h1 className="text-3xl sm:text-4xl text-walnut mb-8">Teams</h1>
+      <h1 className={`text-3xl sm:text-4xl text-walnut ${reRated ? "mb-2" : "mb-8"}`}>
+        Teams
+      </h1>
+      {reRated && (
+        <p className="text-walnut-soft text-sm mb-8">
+          Handicaps were re-rated at the season&rsquo;s midpoint. Earlier rounds
+          were played on the opening numbers.
+        </p>
+      )}
 
       <div className="space-y-10">
         {teams.map((team) => {
@@ -36,16 +49,13 @@ export default async function TeamsPage() {
               </div>
 
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-                <PlayerRow
-                  name={team.player1Name}
-                  raw={team.player1RawHcp}
-                  adj={team.player1AdjHcp}
-                />
-                <PlayerRow
-                  name={team.player2Name}
-                  raw={team.player2RawHcp}
-                  adj={team.player2AdjHcp}
-                />
+                {team.players.map((player) => (
+                  <PlayerRow
+                    key={player.playerId}
+                    player={player}
+                    roundNumbers={roundNumbers}
+                  />
+                ))}
               </div>
 
               <div className="mt-5">
@@ -96,27 +106,44 @@ export default async function TeamsPage() {
       </div>
 
       <p className="text-xs text-walnut-soft mt-10">
-        Adjusted handicap (Adj) is what's used for net match play. <Link href="/standings">Standings →</Link>
+        Adjusted handicap (Adj) is what&rsquo;s used for net match play. <Link href="/standings">Standings →</Link>
       </p>
     </div>
   );
 }
 
 function PlayerRow({
-  name,
-  raw,
-  adj,
+  player,
+  roundNumbers,
 }: {
-  name: string;
-  raw: string;
-  adj: number;
+  player: PlayerOnTeam;
+  roundNumbers: string[];
 }) {
+  const changed =
+    player.priorAdjHcp !== null && player.priorAdjHcp !== player.adjHcp;
+  const priorWindow =
+    changed && player.priorEffectiveFromRound
+      ? roundRangeLabel(
+          player.priorEffectiveFromRound,
+          player.effectiveFromRound,
+          roundNumbers,
+        )
+      : "";
+
   return (
-    <div className="flex items-baseline justify-between border-b border-walnut-faint/60 pb-2">
-      <span className="text-walnut">{name}</span>
-      <span className="text-walnut-soft text-xs">
-        Raw {raw} · Adj {adj}
-      </span>
+    <div className="border-b border-walnut-faint/60 pb-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-walnut">{player.name}</span>
+        <span className="text-walnut-soft text-xs">
+          {player.rawHcp ? `Raw ${player.rawHcp} · ` : ""}Adj {player.adjHcp}
+        </span>
+      </div>
+      {changed && (
+        <p className="text-[11px] text-walnut-soft/80 text-right mt-0.5">
+          was {player.priorAdjHcp}
+          {priorWindow ? ` for ${priorWindow}` : ""}
+        </p>
+      )}
     </div>
   );
 }

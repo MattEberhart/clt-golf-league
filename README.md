@@ -28,7 +28,7 @@ cp .env.example .env.local
 
 pnpm db:generate      # generate migrations from src/db/schema.ts
 pnpm db:migrate       # apply migrations (works against file: or libsql: URLs)
-pnpm db:seed          # load teams, schedule, matchups, and 2 existing R1 results
+pnpm db:seed          # load season, players, teams, handicaps, schedule, matchups, results
 
 pnpm dev              # http://localhost:3000
 ```
@@ -61,6 +61,16 @@ The custom migration runner at `src/db/migrate.ts` is used instead of
 `drizzle-kit migrate` so it works for both local file URLs and hosted Turso
 (drizzle-kit's `turso` dialect requires an auth token even for `file:` URLs).
 
+Migrations that change the shape of a table the deployed app reads are split
+into **expand** and **contract** halves (see `0002` / `0003`): apply the
+additive half, deploy, then apply the destructive half. Running both before the
+deploy takes the site down.
+
+`pnpm db:migrate` reads `TURSO_DATABASE_URL` from the environment **before**
+`.env.local` — `dotenv` does not override existing variables. If your shell
+exports production credentials, unset them (`env -u TURSO_DATABASE_URL -u
+TURSO_AUTH_TOKEN pnpm db:migrate`) or you will migrate prod by accident.
+
 ## Deploy to Vercel + Turso
 
 1. **Create a Turso DB**
@@ -89,7 +99,7 @@ The custom migration runner at `src/db/migrate.ts` is used instead of
 | `/` | Hero, current round callout, top-6 standings, last 3 results |
 | `/schedule` | Full season + championship row (auto-seeds after Round 5) |
 | `/standings` | Sortable (`?sort=…`) table with tiebreaker footnote |
-| `/teams` | Per-team card with both players, handicaps, and match history |
+| `/teams` | Per-team card with both players, current handicaps, and match history |
 | `/results` | All results grouped by round, newest first |
 | `/submit` | Password gate + form to enter a matchup result |
 
@@ -109,6 +119,49 @@ Standings (and championship seeding) apply this chain in order:
 Implemented in `src/lib/standings.ts` as `rankTeams(teams, results)`. Pure
 function — easy to unit-test (no tests written; spec said to keep them
 test-friendly only).
+
+## Handicap revisions
+
+The league re-rates handicaps partway through the season, so a single
+`adj_hcp` column would erase the numbers earlier rounds were played on.
+Instead, `player_handicaps` is an append-only log:
+
+| Column | What |
+| --- | --- |
+| `season_id`, `player_id` | Who, in which season |
+| `raw_hcp` | Nullable — a revision may restate only the adjusted number |
+| `adj_hcp` | What net match play uses |
+| `effective_from_round` | `rounds.number` the value takes effect at (`"1"`..`"5"`, `"champ"`) |
+| `note` | Optional, e.g. `Mid-season re-rate` |
+
+The log is **sparse**: a row exists only where a player's number changed. The
+value in effect at round R is the latest row with `effective_from_round` at or
+before R, resolved by `resolveHandicaps` in `src/lib/handicaps.ts` (pure, easy
+to test). 2026 has two windows — the opening numbers from Round 1, and the
+commissioner's re-rate from Round 4.
+
+`/teams` shows only the value in effect today, with `was 17 for Rounds 1–3`
+underneath for the players who changed. Results and standings are deliberately
+untouched: no recorded outcome depends on a handicap, and annotating match rows
+with them would imply otherwise.
+
+The Round 4 re-rate arrived as adjusted numbers only. Raw values are still
+pending, so those rows have `raw_hcp = NULL` and `/teams` omits the Raw figure
+rather than showing a stale one. `scripts/pending/midseason_raw_handicaps.sql`
+is a ready-to-fill script — it lives outside `drizzle/` so `pnpm db:migrate`
+cannot pick it up; move it in and add a journal entry once the numbers arrive.
+
+## Seasons
+
+`seasons` marks exactly one row `is_current`, and `teams` / `rounds` /
+`player_handicaps` are scoped to it. `players` is deliberately **not** scoped:
+a player keeps one row across seasons, so their handicap history follows them
+even if they change teams. Rolling over a season is pure data entry — insert
+the season, its teams, `team_players` (reusing existing `players` rows), rounds,
+matchups, and each player's opening handicap revision. No schema change.
+
+Not built yet, all additive: a `?season=` selector on the public pages,
+cross-season career records, archived standings.
 
 ## Championship round
 
@@ -144,6 +197,9 @@ The brief said "make a reasonable call and note it." Notes:
 - **Player handicaps stored as TEXT for raw values** because the spec showed
   one-decimal precision (`23.5`, `2.8`); SQLite REAL would round-trip fine but
   TEXT preserves the exact spec representation. Adjusted handicaps are integers.
+- **Handicaps live in an append-only log, not on the team row** — see
+  "Handicap revisions" below. A mid-season re-rate must not erase what the
+  earlier rounds were actually played on.
 - **`submitted_at` is an ISO string in UTC.** Display formatting happens in
   `America/New_York` via `date-fns` `format`. Round windows are stored as
   date-only strings and compared lexicographically.
