@@ -16,6 +16,11 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+// The footer reads the current season from the database, so nothing under this
+// layout can be prerendered at build time — including the built-in 404 page,
+// which would otherwise need a reachable database during `next build`.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: LEAGUE_NAME,
   description: `${LEAGUE_NAME} — net match play golf league, ${LEAGUE_LOCATION}`,
