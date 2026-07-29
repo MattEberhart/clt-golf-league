@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f19e625a-5027-4e13-9b3b-dc74e05d17e6",
-  "prevId": "a0635fdc-1210-4c0a-824a-e58749b4fab7",
+  "id": "1e675713-93bb-4457-ba4a-c9d38eb1805d",
+  "prevId": "f19e625a-5027-4e13-9b3b-dc74e05d17e6",
   "tables": {
     "courses": {
       "name": "courses",
@@ -136,6 +136,140 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "player_handicaps": {
+      "name": "player_handicaps",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "season_id": {
+          "name": "season_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "player_id": {
+          "name": "player_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "raw_hcp": {
+          "name": "raw_hcp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "adj_hcp": {
+          "name": "adj_hcp",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "effective_from_round": {
+          "name": "effective_from_round",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "player_hcp_unique": {
+          "name": "player_hcp_unique",
+          "columns": [
+            "season_id",
+            "player_id",
+            "effective_from_round"
+          ],
+          "isUnique": true
+        },
+        "player_hcp_season_idx": {
+          "name": "player_hcp_season_idx",
+          "columns": [
+            "season_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "player_handicaps_season_id_seasons_id_fk": {
+          "name": "player_handicaps_season_id_seasons_id_fk",
+          "tableFrom": "player_handicaps",
+          "tableTo": "seasons",
+          "columnsFrom": [
+            "season_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "player_handicaps_player_id_players_id_fk": {
+          "name": "player_handicaps_player_id_players_id_fk",
+          "tableFrom": "player_handicaps",
+          "tableTo": "players",
+          "columnsFrom": [
+            "player_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "players": {
+      "name": "players",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "results": {
       "name": "results",
       "columns": {
@@ -253,6 +387,13 @@
           "notNull": true,
           "autoincrement": true
         },
+        "season_id": {
+          "name": "season_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "number": {
           "name": "number",
           "type": "text",
@@ -299,12 +440,154 @@
         }
       },
       "foreignKeys": {
+        "rounds_season_id_seasons_id_fk": {
+          "name": "rounds_season_id_seasons_id_fk",
+          "tableFrom": "rounds",
+          "tableTo": "seasons",
+          "columnsFrom": [
+            "season_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "rounds_course_id_courses_id_fk": {
           "name": "rounds_course_id_courses_id_fk",
           "tableFrom": "rounds",
           "tableTo": "courses",
           "columnsFrom": [
             "course_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "seasons": {
+      "name": "seasons",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_current": {
+          "name": "is_current",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "seasons_year_unique": {
+          "name": "seasons_year_unique",
+          "columns": [
+            "year"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "team_players": {
+      "name": "team_players",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "player_id": {
+          "name": "player_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "slot": {
+          "name": "slot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "team_players_team_slot_unique": {
+          "name": "team_players_team_slot_unique",
+          "columns": [
+            "team_id",
+            "slot"
+          ],
+          "isUnique": true
+        },
+        "team_players_team_player_unique": {
+          "name": "team_players_team_player_unique",
+          "columns": [
+            "team_id",
+            "player_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "team_players_team_id_teams_id_fk": {
+          "name": "team_players_team_id_teams_id_fk",
+          "tableFrom": "team_players",
+          "tableTo": "teams",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "team_players_player_id_players_id_fk": {
+          "name": "team_players_player_id_players_id_fk",
+          "tableFrom": "team_players",
+          "tableTo": "players",
+          "columnsFrom": [
+            "player_id"
           ],
           "columnsTo": [
             "id"
@@ -326,6 +609,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "season_id": {
+          "name": "season_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "number": {
           "name": "number",
@@ -386,7 +676,21 @@
           "isUnique": true
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "teams_season_id_seasons_id_fk": {
+          "name": "teams_season_id_seasons_id_fk",
+          "tableFrom": "teams",
+          "tableTo": "seasons",
+          "columnsFrom": [
+            "season_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}

@@ -1,5 +1,7 @@
 import "server-only";
+import { eq } from "drizzle-orm";
 import { db, schema } from "@/db/client";
+import { getCurrentSeason } from "./queries";
 import { rankTeams } from "./standings";
 import type { Matchup, Result, Round, Team } from "@/db/schema";
 import { isRoundComplete } from "./schedule";
@@ -64,11 +66,15 @@ export async function ensureChampMatchups(input: {
 }
 
 export async function reseedChampIfNeeded(): Promise<void> {
+  const season = await getCurrentSeason();
   const [rounds, matchups, results, teams] = await Promise.all([
-    db.select().from(schema.rounds),
+    db
+      .select()
+      .from(schema.rounds)
+      .where(eq(schema.rounds.seasonId, season.id)),
     db.select().from(schema.matchups),
     db.select().from(schema.results),
-    db.select().from(schema.teams),
+    db.select().from(schema.teams).where(eq(schema.teams.seasonId, season.id)),
   ]);
   await ensureChampMatchups({ rounds, matchups, results, teams });
 }

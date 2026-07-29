@@ -1,7 +1,7 @@
 import type { Matchup, Result, Team } from "@/db/schema";
 
-export type TeamStanding = {
-  team: Team;
+export type TeamStanding<T extends Team = Team> = {
+  team: T;
   wins: number;
   losses: number;
   played: number;
@@ -14,11 +14,11 @@ export type TeamStanding = {
  * losses). Because every result is one team's +MoV and another's -MoV, the
  * column sums to 0 across the league.
  */
-export function computeStandings(
-  teams: Team[],
+export function computeStandings<T extends Team>(
+  teams: T[],
   results: Result[],
-): TeamStanding[] {
-  const byId = new Map<number, TeamStanding>();
+): TeamStanding<T>[] {
+  const byId = new Map<number, TeamStanding<T>>();
   for (const t of teams) {
     byId.set(t.id, {
       team: t,
@@ -59,11 +59,14 @@ export function computeStandings(
  *   4. Team # ascending — deterministic placeholder; a real tiebreaker
  *      would require a playoff (noted in README).
  */
-export function rankTeams(teams: Team[], results: Result[]): TeamStanding[] {
+export function rankTeams<T extends Team>(
+  teams: T[],
+  results: Result[],
+): TeamStanding<T>[] {
   const standings = computeStandings(teams, results);
 
   // Group by win count, sort each group, concatenate from most wins down.
-  const groups = new Map<number, TeamStanding[]>();
+  const groups = new Map<number, TeamStanding<T>[]>();
   for (const s of standings) {
     const arr = groups.get(s.wins) ?? [];
     arr.push(s);
@@ -71,7 +74,7 @@ export function rankTeams(teams: Team[], results: Result[]): TeamStanding[] {
   }
 
   const sortedWinCounts = [...groups.keys()].sort((a, b) => b - a);
-  const ordered: TeamStanding[] = [];
+  const ordered: TeamStanding<T>[] = [];
 
   for (const w of sortedWinCounts) {
     const group = groups.get(w)!;
@@ -90,7 +93,10 @@ export function rankTeams(teams: Team[], results: Result[]): TeamStanding[] {
  * Recursively re-applies the tiebreaker chain to any sub-groups still tied
  * after the head-to-head step.
  */
-function breakTie(group: TeamStanding[], allResults: Result[]): TeamStanding[] {
+function breakTie<T extends Team>(
+  group: TeamStanding<T>[],
+  allResults: Result[],
+): TeamStanding<T>[] {
   if (group.length <= 1) return group;
 
   // 2. Head-to-head
@@ -120,7 +126,7 @@ function breakTie(group: TeamStanding[], allResults: Result[]): TeamStanding[] {
   }
 
   // Sub-group by mini-table wins.
-  const subGroups = new Map<number, TeamStanding[]>();
+  const subGroups = new Map<number, TeamStanding<T>[]>();
   for (const g of group) {
     const w = h2hWins.get(g.team.id) ?? 0;
     const arr = subGroups.get(w) ?? [];
@@ -129,7 +135,7 @@ function breakTie(group: TeamStanding[], allResults: Result[]): TeamStanding[] {
   }
 
   const subWinCounts = [...subGroups.keys()].sort((a, b) => b - a);
-  const out: TeamStanding[] = [];
+  const out: TeamStanding<T>[] = [];
   for (const w of subWinCounts) {
     const sub = subGroups.get(w)!;
     if (sub.length === 1) {
@@ -142,7 +148,7 @@ function breakTie(group: TeamStanding[], allResults: Result[]): TeamStanding[] {
   return out;
 }
 
-function tieByMov(group: TeamStanding[]): TeamStanding[] {
+function tieByMov<T extends Team>(group: TeamStanding<T>[]): TeamStanding<T>[] {
   return [...group].sort((a, b) => {
     if (b.totalMov !== a.totalMov) return b.totalMov - a.totalMov;
     return a.team.number - b.team.number;

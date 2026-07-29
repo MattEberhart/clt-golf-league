@@ -6,19 +6,90 @@ import {
   index,
 } from "drizzle-orm/sqlite-core";
 
+export const seasons = sqliteTable(
+  "seasons",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    year: integer("year").notNull(),
+    name: text("name").notNull(),
+    isCurrent: integer("is_current", { mode: "boolean" })
+      .notNull()
+      .default(false),
+  },
+  (t) => [uniqueIndex("seasons_year_unique").on(t.year)],
+);
+
+/**
+ * League-wide identity, deliberately not season-scoped: a player keeps the same
+ * row (and therefore the same handicap history) across seasons and team changes.
+ */
+export const players = sqliteTable("players", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+});
+
 export const teams = sqliteTable(
   "teams",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
+    seasonId: integer("season_id")
+      .notNull()
+      .references(() => seasons.id),
     number: integer("number").notNull(),
-    player1Name: text("player1_name").notNull(),
-    player1RawHcp: text("player1_raw_hcp").notNull(),
-    player1AdjHcp: integer("player1_adj_hcp").notNull(),
-    player2Name: text("player2_name").notNull(),
-    player2RawHcp: text("player2_raw_hcp").notNull(),
-    player2AdjHcp: integer("player2_adj_hcp").notNull(),
   },
-  (t) => [uniqueIndex("teams_number_unique").on(t.number)],
+  (t) => [uniqueIndex("teams_season_number_unique").on(t.seasonId, t.number)],
+);
+
+/** Roster for one season. Slot is display order only. */
+export const teamPlayers = sqliteTable(
+  "team_players",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => teams.id),
+    playerId: integer("player_id")
+      .notNull()
+      .references(() => players.id),
+    slot: integer("slot").notNull(),
+  },
+  (t) => [
+    uniqueIndex("team_players_team_slot_unique").on(t.teamId, t.slot),
+    uniqueIndex("team_players_team_player_unique").on(t.teamId, t.playerId),
+  ],
+);
+
+/**
+ * Append-only handicap log. One row per player per change — a player whose
+ * handicap did not move has no row for that revision. The value in effect at
+ * round R is the latest row with `effectiveFromRound` at or before R, so old
+ * numbers are never overwritten.
+ */
+export const playerHandicaps = sqliteTable(
+  "player_handicaps",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    seasonId: integer("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    playerId: integer("player_id")
+      .notNull()
+      .references(() => players.id),
+    rawHcp: text("raw_hcp"),
+    adjHcp: integer("adj_hcp").notNull(),
+    // rounds.number: "1".."5" or "champ"
+    effectiveFromRound: text("effective_from_round").notNull(),
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("player_hcp_unique").on(
+      t.seasonId,
+      t.playerId,
+      t.effectiveFromRound,
+    ),
+    index("player_hcp_season_idx").on(t.seasonId),
+  ],
 );
 
 export const courses = sqliteTable("courses", {
@@ -31,6 +102,9 @@ export const rounds = sqliteTable(
   "rounds",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
+    seasonId: integer("season_id")
+      .notNull()
+      .references(() => seasons.id),
     // "1".."5" or "champ"
     number: text("number").notNull(),
     courseId: integer("course_id").references(() => courses.id),
@@ -38,7 +112,7 @@ export const rounds = sqliteTable(
     windowEnd: text("window_end").notNull(), // ISO date YYYY-MM-DD
     label: text("label").notNull(),
   },
-  (t) => [uniqueIndex("rounds_number_unique").on(t.number)],
+  (t) => [uniqueIndex("rounds_season_number_unique").on(t.seasonId, t.number)],
 );
 
 export const matchups = sqliteTable(
@@ -82,7 +156,11 @@ export const results = sqliteTable(
   (t) => [uniqueIndex("results_matchup_unique").on(t.matchupId)],
 );
 
+export type Season = typeof seasons.$inferSelect;
+export type Player = typeof players.$inferSelect;
 export type Team = typeof teams.$inferSelect;
+export type TeamPlayer = typeof teamPlayers.$inferSelect;
+export type PlayerHandicap = typeof playerHandicaps.$inferSelect;
 export type Course = typeof courses.$inferSelect;
 export type Round = typeof rounds.$inferSelect;
 export type Matchup = typeof matchups.$inferSelect;

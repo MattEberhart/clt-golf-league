@@ -6,6 +6,11 @@ export type RoundWithStatus = Round & {
   status: "upcoming" | "current" | "complete";
 };
 
+/** Numbered rounds ascending, with the championship always last. */
+export function roundSortKey(number: string): number {
+  return number === "champ" ? 999 : Number(number);
+}
+
 /**
  * Today's date in the league's timezone, as a YYYY-MM-DD string.
  * Pure function — pass `now` to override.

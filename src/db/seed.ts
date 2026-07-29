@@ -11,14 +11,65 @@ if (!url) throw new Error("TURSO_DATABASE_URL is required");
 const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
 const db = drizzle(client, { schema });
 
-const TEAMS = [
-  { number: 1, p1: ["Thomas Anderson", "23.5", 20], p2: ["Calvin Troung", "25.4", 22] },
-  { number: 2, p1: ["Will Francis", "12.5", 9], p2: ["Ben Berger", "2.8", 0] },
-  { number: 3, p1: ["Matt Eberhart", "20.3", 17], p2: ["Tyler Young", "11.0", 8] },
-  { number: 4, p1: [`"Slick" Nick Lloyd`, "11.2", 8], p2: ["Andrew Alix", "25.8", 23] },
-  { number: 5, p1: ["Andrew Adam", "16.3", 13], p2: ["Jay Glenn", "19.8", 17] },
-  { number: 6, p1: ["Joe Abrahamson", "25.2", 22], p2: ["David Henderson", "26.0", 23] },
-] as const;
+const SEASON = { year: 2026, name: "2026 Season" };
+
+// Team number → players in slot order.
+const TEAMS: Array<{ number: number; players: [string, string] }> = [
+  { number: 1, players: ["Thomas Anderson", "Calvin Troung"] },
+  { number: 2, players: ["Will Francis", "Ben Berger"] },
+  { number: 3, players: ["Matt Eberhart", "Tyler Young"] },
+  { number: 4, players: [`"Slick" Nick Lloyd`, "Andrew Alix"] },
+  { number: 5, players: ["Andrew Adam", "Jay Glenn"] },
+  { number: 6, players: ["Joe Abrahamson", "David Henderson"] },
+];
+
+// Append-only handicap log: one entry per player per change. Players missing
+// from a later revision keep the value from the previous one.
+const HANDICAPS: Array<{
+  effectiveFromRound: string;
+  note: string | null;
+  createdAt: string;
+  values: Array<[name: string, raw: string | null, adj: number]>;
+}> = [
+  {
+    effectiveFromRound: "1",
+    note: null,
+    createdAt: "2026-04-01T00:00:00.000Z",
+    values: [
+      ["Thomas Anderson", "23.5", 20],
+      ["Calvin Troung", "25.4", 22],
+      ["Will Francis", "12.5", 9],
+      ["Ben Berger", "2.8", 0],
+      ["Matt Eberhart", "20.3", 17],
+      ["Tyler Young", "11.0", 8],
+      [`"Slick" Nick Lloyd`, "11.2", 8],
+      ["Andrew Alix", "25.8", 23],
+      ["Andrew Adam", "16.3", 13],
+      ["Jay Glenn", "19.8", 17],
+      ["Joe Abrahamson", "25.2", 22],
+      ["David Henderson", "26.0", 23],
+    ],
+  },
+  {
+    // Mid-season re-rate. Raw values pending from the commissioner — see
+    // scripts/pending/midseason_raw_handicaps.sql.
+    effectiveFromRound: "4",
+    note: "Mid-season re-rate",
+    createdAt: "2026-07-15T00:00:00.000Z",
+    values: [
+      ["Thomas Anderson", null, 21],
+      ["Calvin Troung", null, 24],
+      ["Will Francis", null, 8],
+      ["Andrew Alix", null, 25],
+      ["Jay Glenn", null, 15],
+      ["Andrew Adam", null, 11],
+      ["Tyler Young", null, 7],
+      ["Matt Eberhart", null, 16],
+      ["David Henderson", null, 23],
+      ["Joe Abrahamson", null, 19],
+    ],
+  },
+];
 
 const COURSES = [
   { name: "Rocky River" },
@@ -109,24 +160,59 @@ const ROUNDS: Array<{
 async function main() {
   console.log("Seeding…");
 
-  // Idempotent guard: if a team #1 row already exists, assume seeded.
-  const existing = await db.select().from(schema.teams).where(eq(schema.teams.number, 1));
-  if (existing.length > 0) {
-    console.log("Teams already seeded — exiting.");
+  // Idempotent guard: if the season already exists, assume seeded.
+  const existingSeason = await db
+    .select()
+    .from(schema.seasons)
+    .where(eq(schema.seasons.year, SEASON.year));
+  if (existingSeason.length > 0) {
+    console.log("Season already seeded — exiting.");
     return;
   }
 
-  // Teams
+  const [season] = await db
+    .insert(schema.seasons)
+    .values({ year: SEASON.year, name: SEASON.name, isCurrent: true })
+    .returning({ id: schema.seasons.id });
+
+  // Players, then season rosters.
+  const playerIdByName = new Map<string, number>();
   for (const t of TEAMS) {
-    await db.insert(schema.teams).values({
-      number: t.number,
-      player1Name: t.p1[0],
-      player1RawHcp: t.p1[1],
-      player1AdjHcp: t.p1[2],
-      player2Name: t.p2[0],
-      player2RawHcp: t.p2[1],
-      player2AdjHcp: t.p2[2],
-    });
+    const [team] = await db
+      .insert(schema.teams)
+      .values({ seasonId: season.id, number: t.number })
+      .returning({ id: schema.teams.id });
+
+    let slot = 1;
+    for (const name of t.players) {
+      const [player] = await db
+        .insert(schema.players)
+        .values({ name })
+        .returning({ id: schema.players.id });
+      playerIdByName.set(name, player.id);
+      await db.insert(schema.teamPlayers).values({
+        teamId: team.id,
+        playerId: player.id,
+        slot,
+      });
+      slot++;
+    }
+  }
+
+  for (const revision of HANDICAPS) {
+    for (const [name, raw, adj] of revision.values) {
+      const playerId = playerIdByName.get(name);
+      if (!playerId) throw new Error(`Unknown player in HANDICAPS: ${name}`);
+      await db.insert(schema.playerHandicaps).values({
+        seasonId: season.id,
+        playerId,
+        rawHcp: raw,
+        adjHcp: adj,
+        effectiveFromRound: revision.effectiveFromRound,
+        note: revision.note,
+        createdAt: revision.createdAt,
+      });
+    }
   }
 
   // Courses
@@ -144,6 +230,7 @@ async function main() {
     const inserted = await db
       .insert(schema.rounds)
       .values({
+        seasonId: season.id,
         number: r.number,
         courseId,
         windowStart: r.windowStart,
@@ -155,12 +242,12 @@ async function main() {
 
     let slot = 1;
     for (const [aNum, bNum] of r.matchups) {
-      const teamA = await db.select().from(schema.teams).where(eq(schema.teams.number, aNum));
-      const teamB = await db.select().from(schema.teams).where(eq(schema.teams.number, bNum));
+      const teamA = await team(aNum);
+      const teamB = await team(bNum);
       await db.insert(schema.matchups).values({
         roundId,
-        teamAId: teamA[0].id,
-        teamBId: teamB[0].id,
+        teamAId: teamA.id,
+        teamBId: teamB.id,
         slot,
       });
       slot++;
@@ -168,17 +255,18 @@ async function main() {
   }
 
   // Seed two existing Round 1 results: T3 def. T4 (3 UP), T2 def. T5 (3 UP)
-  const round1 = (await db.select().from(schema.rounds).where(eq(schema.rounds.number, "1")))[0];
+  const round1 = (
+    await db.select().from(schema.rounds).where(eq(schema.rounds.number, "1"))
+  )[0];
   const round1Matchups = await db
     .select()
     .from(schema.matchups)
     .where(eq(schema.matchups.roundId, round1.id));
 
-  const t = async (n: number) => (await db.select().from(schema.teams).where(eq(schema.teams.number, n)))[0];
-  const t2 = await t(2);
-  const t3 = await t(3);
-  const t4 = await t(4);
-  const t5 = await t(5);
+  const t2 = await team(2);
+  const t3 = await team(3);
+  const t4 = await team(4);
+  const t5 = await team(5);
 
   const m34 = round1Matchups.find(
     (m) => (m.teamAId === t3.id && m.teamBId === t4.id) || (m.teamAId === t4.id && m.teamBId === t3.id),
@@ -208,6 +296,14 @@ async function main() {
   ]);
 
   console.log("Seed complete.");
+}
+
+async function team(number: number) {
+  const rows = await db
+    .select()
+    .from(schema.teams)
+    .where(eq(schema.teams.number, number));
+  return rows[0];
 }
 
 main()

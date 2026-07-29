@@ -105,7 +105,7 @@ function SortableHeader({
   );
 }
 
-function applySort(rows: TeamStanding[], sort: SortKey): TeamStanding[] {
+function applySort<T extends TeamStanding>(rows: T[], sort: SortKey): T[] {
   if (sort === "default") return rows;
   const copy = [...rows];
   switch (sort) {
