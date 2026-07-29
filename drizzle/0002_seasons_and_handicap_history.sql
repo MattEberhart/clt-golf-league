@@ -78,5 +78,7 @@ FROM (
 	UNION ALL SELECT 'Matt Eberhart', 16
 	UNION ALL SELECT 'David Henderson', 23
 	UNION ALL SELECT 'Joe Abrahamson', 19
+	UNION ALL SELECT 'Ben Berger', 0
+	UNION ALL SELECT '"Slick" Nick Lloyd', 8
 ) `v`
 JOIN `players` `p` ON `p`.`name` = `v`.`name`;

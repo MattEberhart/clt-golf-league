@@ -67,6 +67,10 @@ const HANDICAPS: Array<{
       ["Matt Eberhart", null, 16],
       ["David Henderson", null, 23],
       ["Joe Abrahamson", null, 19],
+      // Adjusted number unchanged, but the re-rate moved their raw handicap —
+      // raw pending, so these carry a Round 4 row too.
+      ["Ben Berger", null, 0],
+      [`"Slick" Nick Lloyd`, null, 8],
     ],
   },
 ];
