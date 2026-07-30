@@ -25,10 +25,9 @@ export function champSlotLabel(slot: number): string {
  * If all 5 regular rounds are complete and no champ matchups exist yet,
  * compute seeds via rankTeams and insert the three champ matchups.
  *
- * Write path only — never call this from a page render. The eligibility check
- * and the inserts run in one transaction and the inserts ignore conflicts on
- * `matchups_round_slot_unique`, so concurrent callers cannot double-seed or
- * fail on the unique index.
+ * Write path only — never call this from a page render. The seeding itself is a
+ * single conflict-ignoring INSERT, so it is atomically idempotent: concurrent
+ * callers cannot double-seed or fail on `matchups_round_slot_unique`.
  */
 export async function ensureChampMatchups(input: {
   rounds: Round[];
@@ -59,27 +58,22 @@ export async function ensureChampMatchups(input: {
     [ranked[4].team.id, ranked[5].team.id, 3], // consolation
   ];
 
-  await db.transaction(async (tx) => {
-    const alreadySeeded = await tx
-      .select({ id: schema.matchups.id })
-      .from(schema.matchups)
-      .where(eq(schema.matchups.roundId, champRound.id));
-    if (alreadySeeded.length > 0) return;
-
-    await tx
-      .insert(schema.matchups)
-      .values(
-        seedPairs.map(([a, b, slot]) => ({
-          roundId: champRound.id,
-          teamAId: a,
-          teamBId: b,
-          slot,
-        })),
-      )
-      .onConflictDoNothing({
-        target: [schema.matchups.roundId, schema.matchups.slot],
-      });
-  });
+  // One statement, so it is atomic, and conflicts on
+  // `matchups_round_slot_unique` are ignored rather than raised: concurrent
+  // callers cannot double-seed or fail on the unique index.
+  await db
+    .insert(schema.matchups)
+    .values(
+      seedPairs.map(([a, b, slot]) => ({
+        roundId: champRound.id,
+        teamAId: a,
+        teamBId: b,
+        slot,
+      })),
+    )
+    .onConflictDoNothing({
+      target: [schema.matchups.roundId, schema.matchups.slot],
+    });
 }
 
 /**

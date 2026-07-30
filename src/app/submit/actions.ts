@@ -41,6 +41,19 @@ const submitSchema = z.object({
 
 export type SubmitState = { error?: string; ok?: boolean };
 
+/**
+ * Seeding is idempotent, so every authenticated submission retries it and a
+ * submission that failed to seed heals on the next one. A seeding failure must
+ * never fail a submission whose result row is already committed.
+ */
+async function trySeedChamp(): Promise<void> {
+  try {
+    await reseedChampIfNeeded();
+  } catch (err) {
+    console.error("champ seeding failed", err);
+  }
+}
+
 export async function submitResultAction(
   _prev: SubmitState | undefined,
   formData: FormData,
@@ -48,6 +61,8 @@ export async function submitResultAction(
   if (!(await hasSession())) {
     return { error: "Session expired. Please re-enter the password." };
   }
+
+  await trySeedChamp();
 
   const parsed = submitSchema.safeParse({
     matchupId: formData.get("matchupId"),
@@ -88,7 +103,7 @@ export async function submitResultAction(
     submittedByLabel,
   });
 
-  await reseedChampIfNeeded();
+  await trySeedChamp();
 
   revalidatePath("/");
   revalidatePath("/standings");
