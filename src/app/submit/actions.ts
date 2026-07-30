@@ -54,6 +54,19 @@ async function trySeedChamp(): Promise<void> {
   }
 }
 
+/**
+ * Explicit recovery path: seeding normally happens as part of submitting the
+ * final regular-season result, but if that attempt failed (or the results
+ * predate automatic seeding) there is no submission left to piggyback on.
+ */
+export async function seedChampAction(): Promise<void> {
+  if (!(await hasSession())) return;
+  await reseedChampIfNeeded();
+  revalidatePath("/");
+  revalidatePath("/schedule");
+  revalidatePath("/submit");
+}
+
 export async function submitResultAction(
   _prev: SubmitState | undefined,
   formData: FormData,
