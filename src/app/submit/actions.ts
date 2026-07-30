@@ -15,7 +15,7 @@ import { reseedChampIfNeeded } from "@/lib/championship";
 import {
   checkLoginRateLimit,
   clearLoginFailures,
-  clientKey,
+  identifyClient,
   lockoutMessage,
   recordLoginFailure,
 } from "@/lib/rate-limit";
@@ -26,15 +26,15 @@ export async function loginAction(
   _prev: LoginState | undefined,
   formData: FormData,
 ): Promise<LoginState> {
-  const key = await clientKey();
-  const gate = await checkLoginRateLimit(key);
+  const client = await identifyClient();
+  const gate = await checkLoginRateLimit(client);
   if (!gate.allowed) {
     return { error: lockoutMessage(gate.retryAfterSeconds) };
   }
 
   const password = String(formData.get("password") ?? "");
   if (!verifyPassword(password)) {
-    const after = await recordLoginFailure(key);
+    const after = await recordLoginFailure(client);
     return {
       error: after.allowed
         ? "Wrong password."
@@ -42,7 +42,7 @@ export async function loginAction(
     };
   }
 
-  await clearLoginFailures(key);
+  await clearLoginFailures(client);
   await createSession();
   redirect("/submit");
 }

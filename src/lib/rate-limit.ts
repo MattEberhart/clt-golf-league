@@ -1,6 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/db/client";
 
 const FAILURE_WINDOW_MS = 15 * 60 * 1000;
@@ -8,7 +8,8 @@ const PER_IP_FREE_ATTEMPTS = 5;
 const GLOBAL_FREE_ATTEMPTS = 20;
 const BASE_LOCKOUT_MS = 30 * 1000;
 const MAX_LOCKOUT_MS = 60 * 60 * 1000;
-const FAILURE_DELAY_MS = 750;
+const BASE_FAILURE_DELAY_MS = 750;
+const MAX_FAILURE_DELAY_MS = 8 * 1000;
 
 const GLOBAL_KEY = "global";
 const IP_KEY_PREFIX = "ip:";
@@ -18,101 +19,89 @@ export type RateLimitDecision =
   | { allowed: false; retryAfterSeconds: number };
 
 /**
- * Best-effort client identity. Behind a proxy the leftmost x-forwarded-for hop
- * is the client; without any proxy header we fall back to a shared bucket so
- * requests are still counted (against the global budget at minimum).
+ * `identified` is false when no proxy header tells us who the caller is: every
+ * such request shares one bucket, so it only ever earns extra delay, never a
+ * lockout that would take the whole league down with it.
  */
-export async function clientKey(): Promise<string> {
+export type LoginClient = { key: string; identified: boolean };
+
+export async function identifyClient(): Promise<LoginClient> {
   const h = await headers();
   const forwarded = h.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const ip = forwarded || h.get("x-real-ip")?.trim() || "unknown";
-  return `${IP_KEY_PREFIX}${ip}`;
+  const ip = forwarded || h.get("x-real-ip")?.trim();
+  return { key: `${IP_KEY_PREFIX}${ip ?? "unknown"}`, identified: Boolean(ip) };
 }
 
-function lockoutFor(failures: number, freeAttempts: number): number {
-  const overage = failures - freeAttempts;
+function lockoutFor(failures: number): number {
+  const overage = failures - PER_IP_FREE_ATTEMPTS;
   if (overage < 1) return 0;
   return Math.min(BASE_LOCKOUT_MS * 2 ** (overage - 1), MAX_LOCKOUT_MS);
 }
 
-/** Returns the current lockout state for this client and the league as a whole. */
-export async function checkLoginRateLimit(key: string): Promise<RateLimitDecision> {
-  const now = Date.now();
-  const rows = await db
-    .select()
-    .from(schema.loginAttempts)
-    .where(inArray(schema.loginAttempts.key, [key, GLOBAL_KEY]));
+/**
+ * Extra think-time once league-wide failures pile up. Deliberately a delay and
+ * not a lockout: distributed guessing has to be slowed down without letting one
+ * attacker bar members who know the password.
+ */
+function failureDelayFor(globalFailures: number): number {
+  const overage = globalFailures - GLOBAL_FREE_ATTEMPTS;
+  if (overage < 1) return BASE_FAILURE_DELAY_MS;
+  return Math.min(BASE_FAILURE_DELAY_MS * 2 ** overage, MAX_FAILURE_DELAY_MS);
+}
 
-  const lockedUntil = rows.reduce((max, row) => Math.max(max, row.lockedUntilMs), 0);
-  if (lockedUntil > now) {
-    return {
-      allowed: false,
-      retryAfterSeconds: Math.ceil((lockedUntil - now) / 1000),
-    };
-  }
-  return { allowed: true };
+/** Lockout state of this client's own bucket. */
+export async function checkLoginRateLimit(
+  client: LoginClient,
+): Promise<RateLimitDecision> {
+  if (!client.identified) return { allowed: true };
+
+  const now = Date.now();
+  const row = (
+    await db
+      .select()
+      .from(schema.loginAttempts)
+      .where(eq(schema.loginAttempts.key, client.key))
+  )[0];
+
+  return decide(row?.lockedUntilMs ?? 0, now);
 }
 
 /**
- * Counts a failed guess against both the per-IP and the league-wide budget,
- * extending the lockout exponentially once the free attempts are used up.
- * Always waits a fixed delay so guessing is slow even before lockout starts.
+ * Counts a failed guess against the client's bucket and the league-wide one,
+ * then sleeps before answering so guessing stays slow even below the lockout
+ * threshold. Only the client's own bucket can escalate into a lockout.
  */
-export async function recordLoginFailure(key: string): Promise<RateLimitDecision> {
+export async function recordLoginFailure(
+  client: LoginClient,
+): Promise<RateLimitDecision> {
   const now = Date.now();
-  const buckets: { key: string; freeAttempts: number }[] = [
-    { key, freeAttempts: PER_IP_FREE_ATTEMPTS },
-    { key: GLOBAL_KEY, freeAttempts: GLOBAL_FREE_ATTEMPTS },
-  ];
+  const globalFailures = await countFailure(GLOBAL_KEY, now);
+  const clientFailures = await countFailure(client.key, now);
 
-  let lockedUntil = 0;
-  for (const bucket of buckets) {
-    const existing = (
+  let lockedUntilMs = 0;
+  if (client.identified) {
+    const lockout = lockoutFor(clientFailures);
+    if (lockout > 0) {
+      lockedUntilMs = now + lockout;
       await db
-        .select()
-        .from(schema.loginAttempts)
-        .where(eq(schema.loginAttempts.key, bucket.key))
-    )[0];
-
-    const windowExpired =
-      !existing || now - existing.windowStartedAtMs > FAILURE_WINDOW_MS;
-    const failures = windowExpired ? 1 : existing.failures + 1;
-    const windowStartedAtMs = windowExpired ? now : existing.windowStartedAtMs;
-    const lockout = lockoutFor(failures, bucket.freeAttempts);
-    const lockedUntilMs = lockout > 0 ? now + lockout : (existing?.lockedUntilMs ?? 0);
-
-    await db
-      .insert(schema.loginAttempts)
-      .values({ key: bucket.key, failures, windowStartedAtMs, lockedUntilMs })
-      .onConflictDoUpdate({
-        target: schema.loginAttempts.key,
-        set: {
-          // Recompute in SQL so concurrent requests cannot lose increments.
-          failures: sql`case when ${now} - ${schema.loginAttempts.windowStartedAtMs} > ${FAILURE_WINDOW_MS} then 1 else ${schema.loginAttempts.failures} + 1 end`,
-          windowStartedAtMs: sql`case when ${now} - ${schema.loginAttempts.windowStartedAtMs} > ${FAILURE_WINDOW_MS} then ${now} else ${schema.loginAttempts.windowStartedAtMs} end`,
-          lockedUntilMs: sql`max(${lockedUntilMs}, ${schema.loginAttempts.lockedUntilMs})`,
-        },
-      });
-
-    lockedUntil = Math.max(lockedUntil, lockedUntilMs);
+        .update(schema.loginAttempts)
+        .set({ lockedUntilMs: sql`max(${lockedUntilMs}, ${schema.loginAttempts.lockedUntilMs})` })
+        .where(eq(schema.loginAttempts.key, client.key));
+    }
   }
 
-  await sleep(FAILURE_DELAY_MS);
+  await sleep(failureDelayFor(globalFailures));
 
-  if (lockedUntil > now) {
-    return {
-      allowed: false,
-      retryAfterSeconds: Math.ceil((lockedUntil - now) / 1000),
-    };
-  }
-  return { allowed: true };
+  return decide(lockedUntilMs, now);
 }
 
-/** Clears the client's failures (and the league budget) after a valid password. */
-export async function clearLoginFailures(key: string): Promise<void> {
-  await db
-    .delete(schema.loginAttempts)
-    .where(inArray(schema.loginAttempts.key, [key, GLOBAL_KEY]));
+/**
+ * Clears the client's own failures after a valid password. The league-wide row
+ * is left alone so a member signing in cannot hand an attacker a fresh budget;
+ * it ages out on its own via the failure window.
+ */
+export async function clearLoginFailures(client: LoginClient): Promise<void> {
+  await db.delete(schema.loginAttempts).where(eq(schema.loginAttempts.key, client.key));
 }
 
 export function lockoutMessage(retryAfterSeconds: number): string {
@@ -122,6 +111,32 @@ export function lockoutMessage(retryAfterSeconds: number): string {
       ? `${retryAfterSeconds} second${retryAfterSeconds === 1 ? "" : "s"}`
       : `${minutes} minute${minutes === 1 ? "" : "s"}`;
   return `Too many failed attempts. Try again in ${wait}.`;
+}
+
+/** Increments a bucket inside its sliding window and returns the new count. */
+async function countFailure(key: string, now: number): Promise<number> {
+  const windowExpired = sql`${now} - ${schema.loginAttempts.windowStartedAtMs} > ${FAILURE_WINDOW_MS}`;
+  const rows = await db
+    .insert(schema.loginAttempts)
+    .values({ key, failures: 1, windowStartedAtMs: now, lockedUntilMs: 0 })
+    .onConflictDoUpdate({
+      target: schema.loginAttempts.key,
+      // Recomputed in SQL so concurrent requests cannot lose increments.
+      set: {
+        failures: sql`case when ${windowExpired} then 1 else ${schema.loginAttempts.failures} + 1 end`,
+        windowStartedAtMs: sql`case when ${windowExpired} then ${now} else ${schema.loginAttempts.windowStartedAtMs} end`,
+      },
+    })
+    .returning({ failures: schema.loginAttempts.failures });
+
+  return rows[0]?.failures ?? 1;
+}
+
+function decide(lockedUntilMs: number, now: number): RateLimitDecision {
+  if (lockedUntilMs > now) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((lockedUntilMs - now) / 1000) };
+  }
+  return { allowed: true };
 }
 
 function sleep(ms: number): Promise<void> {
