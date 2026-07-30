@@ -1,13 +1,12 @@
 import { format, parseISO } from "date-fns";
 import { getScheduleData } from "@/lib/queries";
 import { annotateRoundStatus } from "@/lib/schedule";
-import { reseedChampIfNeeded, champSlotLabel } from "@/lib/championship";
+import { champSlotLabel } from "@/lib/championship";
 import { teamLabel } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
 export default async function SchedulePage() {
-  await reseedChampIfNeeded();
   const { rounds, courses, teams, matchups, results } = await getScheduleData();
   const annotated = annotateRoundStatus(rounds, matchups, results);
 

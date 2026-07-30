@@ -3,7 +3,7 @@ import { getScheduleData } from "@/lib/queries";
 import { getCurrentRound } from "@/lib/schedule";
 import { LoginForm } from "./login-form";
 import { SubmitForm } from "./submit-form";
-import { logoutAction } from "./actions";
+import { logoutAction, seedChampAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +34,23 @@ async function SubmitGate() {
   const openRounds = rounds.filter((r) => openRoundIds.has(r.id));
 
   if (openRounds.length === 0) {
+    const champRound = rounds.find((r) => r.number === "champ");
+    const champUnseeded =
+      champRound !== undefined && !matchups.some((m) => m.roundId === champRound.id);
+
     return (
       <div className="border border-walnut-faint bg-cream-soft p-5 rounded-[2px]">
         <p className="text-walnut">All matchups have results. Nice work.</p>
+        {champUnseeded && (
+          <form action={seedChampAction} className="mt-4">
+            <button
+              type="submit"
+              className="bg-accent text-cream px-5 py-2.5 text-sm font-medium hover:bg-accent-deep rounded-[2px]"
+            >
+              Create championship bracket
+            </button>
+          </form>
+        )}
       </div>
     );
   }
