@@ -3,13 +3,11 @@ import { format, parseISO } from "date-fns";
 import { getScheduleData } from "@/lib/queries";
 import { rankTeams, formatRecord, formatWinPct } from "@/lib/standings";
 import { getCurrentRound } from "@/lib/schedule";
-import { reseedChampIfNeeded } from "@/lib/championship";
 import { teamLabel } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  await reseedChampIfNeeded();
   const { rounds, courses, teams, matchups, results } = await getScheduleData();
   const standings = rankTeams(teams, results);
   const current = getCurrentRound(rounds, results, matchups);

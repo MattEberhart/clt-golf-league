@@ -24,7 +24,11 @@ export function champSlotLabel(slot: number): string {
 /**
  * If all 5 regular rounds are complete and no champ matchups exist yet,
  * compute seeds via rankTeams and insert the three champ matchups.
- * Idempotent — safe to call on every page load.
+ *
+ * Write path only — never call this from a page render. The eligibility check
+ * and the inserts run in one transaction and the inserts ignore conflicts on
+ * `matchups_round_slot_unique`, so concurrent callers cannot double-seed or
+ * fail on the unique index.
  */
 export async function ensureChampMatchups(input: {
   rounds: Round[];
@@ -55,16 +59,33 @@ export async function ensureChampMatchups(input: {
     [ranked[4].team.id, ranked[5].team.id, 3], // consolation
   ];
 
-  for (const [a, b, slot] of seedPairs) {
-    await db.insert(schema.matchups).values({
-      roundId: champRound.id,
-      teamAId: a,
-      teamBId: b,
-      slot,
-    });
-  }
+  await db.transaction(async (tx) => {
+    const alreadySeeded = await tx
+      .select({ id: schema.matchups.id })
+      .from(schema.matchups)
+      .where(eq(schema.matchups.roundId, champRound.id));
+    if (alreadySeeded.length > 0) return;
+
+    await tx
+      .insert(schema.matchups)
+      .values(
+        seedPairs.map(([a, b, slot]) => ({
+          roundId: champRound.id,
+          teamAId: a,
+          teamBId: b,
+          slot,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [schema.matchups.roundId, schema.matchups.slot],
+      });
+  });
 }
 
+/**
+ * Seed the champ round if it is due. Call only from authenticated write paths
+ * (e.g. after a result is submitted), not from GET renders.
+ */
 export async function reseedChampIfNeeded(): Promise<void> {
   const season = await getCurrentSeason();
   const [rounds, matchups, results, teams] = await Promise.all([
