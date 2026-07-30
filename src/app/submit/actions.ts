@@ -12,6 +12,13 @@ import {
   verifyPassword,
 } from "@/lib/auth";
 import { reseedChampIfNeeded } from "@/lib/championship";
+import {
+  checkLoginRateLimit,
+  clearLoginFailures,
+  clientKey,
+  lockoutMessage,
+  recordLoginFailure,
+} from "@/lib/rate-limit";
 
 export type LoginState = { error?: string };
 
@@ -19,10 +26,23 @@ export async function loginAction(
   _prev: LoginState | undefined,
   formData: FormData,
 ): Promise<LoginState> {
+  const key = await clientKey();
+  const gate = await checkLoginRateLimit(key);
+  if (!gate.allowed) {
+    return { error: lockoutMessage(gate.retryAfterSeconds) };
+  }
+
   const password = String(formData.get("password") ?? "");
   if (!verifyPassword(password)) {
-    return { error: "Wrong password." };
+    const after = await recordLoginFailure(key);
+    return {
+      error: after.allowed
+        ? "Wrong password."
+        : lockoutMessage(after.retryAfterSeconds),
+    };
   }
+
+  await clearLoginFailures(key);
   await createSession();
   redirect("/submit");
 }

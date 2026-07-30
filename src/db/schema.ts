@@ -156,6 +156,17 @@ export const results = sqliteTable(
   (t) => [uniqueIndex("results_matchup_unique").on(t.matchupId)],
 );
 
+/**
+ * Failed-login bookkeeping for the shared submit password. Keyed by client IP
+ * (plus one aggregate row) so the throttle survives serverless instance churn.
+ */
+export const loginAttempts = sqliteTable("login_attempts", {
+  key: text("key").primaryKey(),
+  failures: integer("failures").notNull().default(0),
+  windowStartedAtMs: integer("window_started_at_ms").notNull(),
+  lockedUntilMs: integer("locked_until_ms").notNull().default(0),
+});
+
 export type Season = typeof seasons.$inferSelect;
 export type Player = typeof players.$inferSelect;
 export type Team = typeof teams.$inferSelect;
@@ -165,3 +176,4 @@ export type Course = typeof courses.$inferSelect;
 export type Round = typeof rounds.$inferSelect;
 export type Matchup = typeof matchups.$inferSelect;
 export type Result = typeof results.$inferSelect;
+export type LoginAttempt = typeof loginAttempts.$inferSelect;
