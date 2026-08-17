@@ -67,8 +67,9 @@ export default async function TeamsPage() {
                 ) : (
                   <ul className="text-sm divide-y divide-walnut-faint/60">
                     {teamResults.map((r) => {
-                      const won = r.winnerTeamId === team.id;
-                      const opponentId = won ? r.loserTeamId : r.winnerTeamId;
+                      const won = !r.isTie && r.winnerTeamId === team.id;
+                      const tied = r.isTie;
+                      const opponentId = r.winnerTeamId === team.id ? r.loserTeamId : r.winnerTeamId;
                       const opponent = teams.find((t) => t.id === opponentId);
                       const matchup = matchupById.get(r.matchupId);
                       const round = matchup ? roundById.get(matchup.roundId) : undefined;
@@ -82,7 +83,7 @@ export default async function TeamsPage() {
                                 : "text-walnut-soft w-8"
                             }
                           >
-                            {won ? "W" : "L"}
+                            {tied ? "T" : won ? "W" : "L"}
                           </span>
                           <span className="text-walnut">
                             vs {teamLabel(opponent)}
@@ -92,7 +93,7 @@ export default async function TeamsPage() {
                             {course ? ` · ${course.name}` : ""}
                           </span>
                           <span className="ml-auto text-walnut-soft text-xs">
-                            {r.mov} UP · {format(parseISO(r.submittedAt), "MMM d")}
+                            {tied ? "all square" : `${r.mov} UP`} · {format(parseISO(r.submittedAt), "MMM d")}
                           </span>
                         </li>
                       );

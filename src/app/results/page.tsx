@@ -54,13 +54,25 @@ export default async function ResultsPage() {
               </header>
               <ul className="text-sm divide-y divide-walnut-faint/60">
                 {list.map((r) => {
+                  const matchup = matchupById.get(r.matchupId);
+                  const a = matchup ? teamById.get(matchup.teamAId) : undefined;
+                  const b = matchup ? teamById.get(matchup.teamBId) : undefined;
                   const winner = teamById.get(r.winnerTeamId);
                   const loser = teamById.get(r.loserTeamId);
                   return (
                     <li key={r.id} className="py-3 flex flex-wrap items-baseline gap-x-3">
                       <span className="text-walnut">
-                        {teamLabel(winner)} def. {teamLabel(loser)}
-                        <span className="text-walnut-soft"> · {r.mov} UP</span>
+                        {r.isTie ? (
+                          <>
+                            {teamLabel(a)} tied {teamLabel(b)}
+                            <span className="text-walnut-soft"> · all square</span>
+                          </>
+                        ) : (
+                          <>
+                            {teamLabel(winner)} def. {teamLabel(loser)}
+                            <span className="text-walnut-soft"> · {r.mov} UP</span>
+                          </>
+                        )}
                       </span>
                       <span className="ml-auto text-xs text-walnut-soft">
                         {format(parseISO(r.submittedAt), "MMM d, yyyy")} · {r.submittedByLabel}

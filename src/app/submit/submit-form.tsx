@@ -23,6 +23,7 @@ export function SubmitForm({ rounds, matchups, teams, defaultRoundId }: Props) {
 
   const [roundId, setRoundId] = useState<number>(defaultRoundId);
   const [matchupId, setMatchupId] = useState<number | "">("");
+  const [isTie, setIsTie] = useState(false);
 
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
 
@@ -98,28 +99,41 @@ export function SubmitForm({ rounds, matchups, teams, defaultRoundId }: Props) {
 
       {selectedMatchup && teamA && teamB && (
         <fieldset className="block">
-          <legend className="block text-sm text-walnut-soft mb-1">Winner</legend>
+          <legend className="block text-sm text-walnut-soft mb-1">Result</legend>
           <div className="space-y-2">
-            <RadioOption value={teamA.id} team={teamA} />
-            <RadioOption value={teamB.id} team={teamB} />
+            <RadioOption
+              value={teamA.id}
+              team={teamA}
+              disabled={isTie}
+              required={!isTie}
+            />
+            <RadioOption
+              value={teamB.id}
+              team={teamB}
+              disabled={isTie}
+              required={!isTie}
+            />
+            <TieOption checked={isTie} onChange={setIsTie} />
           </div>
         </fieldset>
       )}
 
-      <label className="block">
-        <span className="block text-sm text-walnut-soft mb-1">
-          Margin (holes up at the end)
-        </span>
-        <input
-          type="number"
-          name="mov"
-          min={1}
-          max={18}
-          required
-          inputMode="numeric"
-          className="w-full sm:w-32 border border-walnut-faint bg-cream-soft px-3 py-2 text-walnut focus:outline-none focus:border-accent rounded-[2px]"
-        />
-      </label>
+      {!isTie && (
+        <label className="block">
+          <span className="block text-sm text-walnut-soft mb-1">
+            Margin (holes up at the end)
+          </span>
+          <input
+            type="number"
+            name="mov"
+            min={1}
+            max={18}
+            required
+            inputMode="numeric"
+            className="w-full sm:w-32 border border-walnut-faint bg-cream-soft px-3 py-2 text-walnut focus:outline-none focus:border-accent rounded-[2px]"
+          />
+        </label>
+      )}
 
       <label className="block">
         <span className="block text-sm text-walnut-soft mb-1">Your name</span>
@@ -146,11 +160,53 @@ export function SubmitForm({ rounds, matchups, teams, defaultRoundId }: Props) {
   );
 }
 
-function RadioOption({ value, team }: { value: number; team: Team }) {
+function RadioOption({
+  value,
+  team,
+  disabled,
+  required,
+}: {
+  value: number;
+  team: Team;
+  disabled: boolean;
+  required: boolean;
+}) {
+  return (
+    <label
+      className={`flex items-baseline gap-3 border border-walnut-faint bg-cream-soft px-3 py-2 rounded-[2px] ${
+        disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-accent"
+      }`}
+    >
+      <input
+        type="radio"
+        name="winnerTeamId"
+        value={value}
+        required={required}
+        disabled={disabled}
+        className="accent-accent"
+      />
+      <span className="text-walnut">{teamLabel(team)}</span>
+    </label>
+  );
+}
+
+function TieOption({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
     <label className="flex items-baseline gap-3 border border-walnut-faint bg-cream-soft px-3 py-2 cursor-pointer rounded-[2px] hover:border-accent">
-      <input type="radio" name="winnerTeamId" value={value} required className="accent-accent" />
-      <span className="text-walnut">{teamLabel(team)}</span>
+      <input
+        type="checkbox"
+        name="isTie"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="accent-accent"
+      />
+      <span className="text-walnut">Match ended in a tie (all square)</span>
     </label>
   );
 }

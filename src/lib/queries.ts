@@ -177,6 +177,7 @@ export async function insertResult(input: {
   winnerTeamId: number;
   loserTeamId: number;
   mov: number;
+  isTie: boolean;
   submittedByLabel: string;
 }) {
   await db.insert(schema.results).values({

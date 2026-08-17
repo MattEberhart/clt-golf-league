@@ -74,11 +74,21 @@ export default async function SchedulePage() {
                         <span className="text-walnut-soft text-xs w-20 shrink-0">
                           {isChamp ? champSlotLabel(m.slot) : `Match ${m.slot}`}
                         </span>
-                        <TeamLabel team={a} highlighted={winner?.id === a.id} />
+                        <TeamLabel
+                          team={a}
+                          highlighted={result != null && !result.isTie && winner?.id === a.id}
+                        />
                         <span className="text-walnut-soft">vs</span>
-                        <TeamLabel team={b} highlighted={winner?.id === b.id} />
+                        <TeamLabel
+                          team={b}
+                          highlighted={result != null && !result.isTie && winner?.id === b.id}
+                        />
                         <span className="ml-auto text-walnut-soft text-xs">
-                          {result ? `${teamLabel(winner)} won, ${result.mov} UP` : "—"}
+                          {result
+                            ? result.isTie
+                              ? "Tied · all square"
+                              : `${teamLabel(winner)} won, ${result.mov} UP`
+                            : "—"}
                         </span>
                       </li>
                     );

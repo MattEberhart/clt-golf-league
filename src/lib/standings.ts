@@ -4,15 +4,17 @@ export type TeamStanding<T extends Team = Team> = {
   team: T;
   wins: number;
   losses: number;
+  ties: number;
   played: number;
   winPct: number | null; // null when 0 games played
-  totalMov: number; // net MoV: + on wins, - on losses; sums to 0 league-wide
+  points: number; // wins + 0.5 per tie; used for ranking
+  totalMov: number; // net MoV: + on wins, - on losses, 0 on ties; sums to 0 league-wide
 };
 
 /**
- * Per-team W/L and net MoV (margin of victory added on wins, subtracted on
- * losses). Because every result is one team's +MoV and another's -MoV, the
- * column sums to 0 across the league.
+ * Per-team W/L/T, points, and net MoV. A tie gives each team 0.5 point and
+ * counts as one game played with zero MoV change. A win adds the MoV to the
+ * winner and subtracts it from the loser, so the column still sums to 0.
  */
 export function computeStandings<T extends Team>(
   teams: T[],
@@ -24,12 +26,27 @@ export function computeStandings<T extends Team>(
       team: t,
       wins: 0,
       losses: 0,
+      ties: 0,
       played: 0,
       winPct: null,
+      points: 0,
       totalMov: 0,
     });
   }
   for (const r of results) {
+    if (r.isTie) {
+      const a = byId.get(r.winnerTeamId);
+      const b = byId.get(r.loserTeamId);
+      if (a) {
+        a.ties += 1;
+        a.played += 1;
+      }
+      if (b) {
+        b.ties += 1;
+        b.played += 1;
+      }
+      continue;
+    }
     const w = byId.get(r.winnerTeamId);
     const l = byId.get(r.loserTeamId);
     if (w) {
@@ -44,17 +61,18 @@ export function computeStandings<T extends Team>(
     }
   }
   for (const s of byId.values()) {
-    s.winPct = s.played === 0 ? null : s.wins / s.played;
+    s.points = s.wins + s.ties * 0.5;
+    s.winPct = s.played === 0 ? null : s.points / s.played;
   }
   return [...byId.values()];
 }
 
 /**
  * Rank teams using the league's tiebreaker order:
- *   1. Wins (desc)
+ *   1. Points (wins + 0.5 per tie, descending)
  *   2. Head-to-head record between the tied teams
  *      (if exactly two teams tied, whoever won the direct match;
- *       if more than two, mini-table of W-L among only those teams)
+ *       if more than two, mini-table of points among only those teams)
  *   3. Net Margin of Victory (MoV summed on wins, subtracted on losses, desc)
  *   4. Team # ascending — deterministic placeholder; a real tiebreaker
  *      would require a playoff (noted in README).
@@ -65,19 +83,19 @@ export function rankTeams<T extends Team>(
 ): TeamStanding<T>[] {
   const standings = computeStandings(teams, results);
 
-  // Group by win count, sort each group, concatenate from most wins down.
+  // Group by points, sort each group, concatenate from most points down.
   const groups = new Map<number, TeamStanding<T>[]>();
   for (const s of standings) {
-    const arr = groups.get(s.wins) ?? [];
+    const arr = groups.get(s.points) ?? [];
     arr.push(s);
-    groups.set(s.wins, arr);
+    groups.set(s.points, arr);
   }
 
-  const sortedWinCounts = [...groups.keys()].sort((a, b) => b - a);
+  const sortedPointCounts = [...groups.keys()].sort((a, b) => b - a);
   const ordered: TeamStanding<T>[] = [];
 
-  for (const w of sortedWinCounts) {
-    const group = groups.get(w)!;
+  for (const p of sortedPointCounts) {
+    const group = groups.get(p)!;
     if (group.length === 1) {
       ordered.push(group[0]);
       continue;
@@ -89,7 +107,7 @@ export function rankTeams<T extends Team>(
 }
 
 /**
- * Break ties among a group of standings that all share the same win count.
+ * Break ties among a group of standings that all share the same point total.
  * Recursively re-applies the tiebreaker chain to any sub-groups still tied
  * after the head-to-head step.
  */
@@ -100,7 +118,7 @@ function breakTie<T extends Team>(
   if (group.length <= 1) return group;
 
   // 2. Head-to-head
-  // Two-team case: direct winner advances.
+  // Two-team case: direct winner advances. A direct tie falls through to MoV.
   if (group.length === 2) {
     const [x, y] = group;
     const direct = allResults.find(
@@ -108,36 +126,41 @@ function breakTie<T extends Team>(
         (r.winnerTeamId === x.team.id && r.loserTeamId === y.team.id) ||
         (r.winnerTeamId === y.team.id && r.loserTeamId === x.team.id),
     );
-    if (direct) {
+    if (direct && !direct.isTie) {
       return direct.winnerTeamId === x.team.id ? [x, y] : [y, x];
     }
-    // No head-to-head played — fall through to MoV.
+    // No head-to-head played, or it was a tie — fall through to MoV.
     return tieByMov(group);
   }
 
-  // Three+ tied: mini-table of W-L among only this group.
+  // Three+ tied: mini-table of points among only this group.
   const ids = new Set(group.map((g) => g.team.id));
-  const h2hWins = new Map<number, number>();
-  for (const g of group) h2hWins.set(g.team.id, 0);
+  const h2hPoints = new Map<number, number>();
+  for (const g of group) h2hPoints.set(g.team.id, 0);
   for (const r of allResults) {
     if (ids.has(r.winnerTeamId) && ids.has(r.loserTeamId)) {
-      h2hWins.set(r.winnerTeamId, (h2hWins.get(r.winnerTeamId) ?? 0) + 1);
+      if (r.isTie) {
+        h2hPoints.set(r.winnerTeamId, (h2hPoints.get(r.winnerTeamId) ?? 0) + 0.5);
+        h2hPoints.set(r.loserTeamId, (h2hPoints.get(r.loserTeamId) ?? 0) + 0.5);
+      } else {
+        h2hPoints.set(r.winnerTeamId, (h2hPoints.get(r.winnerTeamId) ?? 0) + 1);
+      }
     }
   }
 
-  // Sub-group by mini-table wins.
+  // Sub-group by mini-table points.
   const subGroups = new Map<number, TeamStanding<T>[]>();
   for (const g of group) {
-    const w = h2hWins.get(g.team.id) ?? 0;
-    const arr = subGroups.get(w) ?? [];
+    const p = h2hPoints.get(g.team.id) ?? 0;
+    const arr = subGroups.get(p) ?? [];
     arr.push(g);
-    subGroups.set(w, arr);
+    subGroups.set(p, arr);
   }
 
-  const subWinCounts = [...subGroups.keys()].sort((a, b) => b - a);
+  const subPointCounts = [...subGroups.keys()].sort((a, b) => b - a);
   const out: TeamStanding<T>[] = [];
-  for (const w of subWinCounts) {
-    const sub = subGroups.get(w)!;
+  for (const p of subPointCounts) {
+    const sub = subGroups.get(p)!;
     if (sub.length === 1) {
       out.push(sub[0]);
       continue;
@@ -156,6 +179,9 @@ function tieByMov<T extends Team>(group: TeamStanding<T>[]): TeamStanding<T>[] {
 }
 
 export function formatRecord(s: TeamStanding): string {
+  if (s.ties > 0) {
+    return `${s.wins}-${s.losses}-${s.ties}`;
+  }
   return `${s.wins}-${s.losses}`;
 }
 

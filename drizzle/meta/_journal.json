@@ -43,6 +43,13 @@
       "when": 1785423847227,
       "tag": "0005_large_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786982614749,
+      "tag": "0006_wet_inertia",
+      "breakpoints": true
     }
   ]
 }

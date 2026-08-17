@@ -150,6 +150,7 @@ export const results = sqliteTable(
       .notNull()
       .references(() => teams.id),
     mov: integer("mov").notNull(),
+    isTie: integer("is_tie", { mode: "boolean" }).notNull().default(false),
     submittedAt: text("submitted_at").notNull(),
     submittedByLabel: text("submitted_by_label").notNull(),
   },
