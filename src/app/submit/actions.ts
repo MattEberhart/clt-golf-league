@@ -55,8 +55,8 @@ export async function logoutAction(): Promise<void> {
 const submitSchema = z
   .object({
     matchupId: z.coerce.number().int().positive(),
-    winnerTeamId: z.coerce.number().int().positive().optional(),
-    mov: z.coerce.number().int().min(0).max(18).optional(),
+    winnerTeamId: z.coerce.number().int().positive().nullish(),
+    mov: z.coerce.number().int().min(0).max(18).nullish(),
     isTie: z.coerce.boolean(),
     submittedByLabel: z.string().trim().min(1).max(60),
   })
