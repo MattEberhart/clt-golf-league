@@ -41,7 +41,7 @@ Local dev uses a SQLite file at `./local.db` (configured in `.env.example`).
 | --- | --- |
 | `TURSO_DATABASE_URL` | `file:./local.db` for dev, `libsql://…` for Turso in prod |
 | `TURSO_AUTH_TOKEN` | Empty for local file URLs; required for hosted Turso |
-| `LEAGUE_PASSWORD` | Shared password league members type to unlock the submit form. 12+ chars, 8+ distinct chars, not a known weak value |
+| `LEAGUE_PASSWORD` | Shared password league members type to unlock the submit form. |
 | `SESSION_SECRET` | 32+ random bytes used to sign the cookie. `openssl rand -base64 48` |
 
 All env reads happen inside `server-only` modules (`src/db/client.ts`,

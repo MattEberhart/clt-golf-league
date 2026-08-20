@@ -14,33 +14,9 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-const MIN_PASSWORD_LENGTH = 12;
-const MIN_PASSWORD_CHARSET = 8; // distinct characters, a crude entropy floor
-const BANNED_PASSWORDS = new Set([
-  "change-me",
-  "changeme",
-  "password",
-  "letmein",
-  "golf",
-  "queencity",
-]);
-
 function getPassword(): string {
   const pw = process.env.LEAGUE_PASSWORD;
   if (!pw) throw new Error("LEAGUE_PASSWORD must be set");
-  if (pw.length < MIN_PASSWORD_LENGTH) {
-    throw new Error(
-      `LEAGUE_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters`,
-    );
-  }
-  if (BANNED_PASSWORDS.has(pw.toLowerCase())) {
-    throw new Error("LEAGUE_PASSWORD is a known weak value; pick another");
-  }
-  if (new Set(pw).size < MIN_PASSWORD_CHARSET) {
-    throw new Error(
-      `LEAGUE_PASSWORD must use at least ${MIN_PASSWORD_CHARSET} distinct characters`,
-    );
-  }
   return pw;
 }
 
