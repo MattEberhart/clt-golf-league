@@ -1,0 +1,1 @@
+ALTER TABLE `results` ADD `is_tie` integer DEFAULT false NOT NULL;

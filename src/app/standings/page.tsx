@@ -41,6 +41,7 @@ export default async function StandingsPage({ searchParams }: PageProps) {
             <SortableHeader label="Team" sortKey="team" current={sort} className="font-normal" />
             <SortableHeader label="W" sortKey="wins" current={sort} className="text-right w-12 font-normal" />
             <th className="py-2 font-normal text-right w-12">L</th>
+            <th className="py-2 font-normal text-right w-12">T</th>
             <SortableHeader label="Win%" sortKey="winpct" current={sort} className="text-right w-16 font-normal" />
             <SortableHeader label="MoV" sortKey="mov" current={sort} className="text-right w-16 font-normal" />
           </tr>
@@ -56,6 +57,7 @@ export default async function StandingsPage({ searchParams }: PageProps) {
               </td>
               <td className="py-3 text-right">{s.wins}</td>
               <td className="py-3 text-right text-walnut-soft">{s.losses}</td>
+              <td className="py-3 text-right text-walnut-soft">{s.ties}</td>
               <td className="py-3 text-right">{formatWinPct(s)}</td>
               <td className="py-3 text-right">{s.totalMov}</td>
             </tr>
@@ -65,8 +67,8 @@ export default async function StandingsPage({ searchParams }: PageProps) {
 
       <p className="text-xs text-walnut-soft mt-6 leading-relaxed">
         <strong className="text-walnut font-medium">Tiebreakers (default sort):</strong>{" "}
-        wins → head-to-head record between tied teams (mini-table when 3+ tied) →
-        cumulative margin of victory → team number. The last step is a deterministic
+        points (wins + 0.5 per tie) → head-to-head record between tied teams
+        (mini-table when 3+ tied) → cumulative margin of victory → team number. The last step is a deterministic
         placeholder; a real tie would require a playoff.
       </p>
 

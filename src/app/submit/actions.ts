@@ -52,12 +52,32 @@ export async function logoutAction(): Promise<void> {
   redirect("/submit");
 }
 
-const submitSchema = z.object({
-  matchupId: z.coerce.number().int().positive(),
-  winnerTeamId: z.coerce.number().int().positive(),
-  mov: z.coerce.number().int().min(1).max(18),
-  submittedByLabel: z.string().trim().min(1).max(60),
-});
+const submitSchema = z
+  .object({
+    matchupId: z.coerce.number().int().positive(),
+    winnerTeamId: z.coerce.number().int().positive().optional(),
+    mov: z.coerce.number().int().min(0).max(18).optional(),
+    isTie: z.coerce.boolean(),
+    submittedByLabel: z.string().trim().min(1).max(60),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.isTie) {
+      if (data.winnerTeamId == null) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["winnerTeamId"],
+          message: "Select a winner.",
+        });
+      }
+      if ((data.mov ?? 0) < 1) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["mov"],
+          message: "Margin must be at least 1 for a win.",
+        });
+      }
+    }
+  });
 
 export type SubmitState = { error?: string; ok?: boolean };
 
@@ -101,23 +121,39 @@ export async function submitResultAction(
     matchupId: formData.get("matchupId"),
     winnerTeamId: formData.get("winnerTeamId"),
     mov: formData.get("mov"),
+    isTie: formData.get("isTie"),
     submittedByLabel: formData.get("submittedByLabel"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  const { matchupId, winnerTeamId, mov, submittedByLabel } = parsed.data;
+  const { matchupId, winnerTeamId, mov, isTie, submittedByLabel } = parsed.data;
 
   const matchup = (
     await db.select().from(schema.matchups).where(eq(schema.matchups.id, matchupId))
   )[0];
   if (!matchup) return { error: "Matchup not found." };
 
-  if (winnerTeamId !== matchup.teamAId && winnerTeamId !== matchup.teamBId) {
-    return { error: "Winner must be one of the two teams in this matchup." };
+  let finalWinnerTeamId: number;
+  let finalLoserTeamId: number;
+  let finalMov: number;
+
+  if (isTie) {
+    finalWinnerTeamId = matchup.teamAId;
+    finalLoserTeamId = matchup.teamBId;
+    finalMov = 0;
+  } else {
+    if (winnerTeamId == null) {
+      return { error: "Select a winner." };
+    }
+    if (winnerTeamId !== matchup.teamAId && winnerTeamId !== matchup.teamBId) {
+      return { error: "Winner must be one of the two teams in this matchup." };
+    }
+    finalWinnerTeamId = winnerTeamId;
+    finalLoserTeamId = winnerTeamId === matchup.teamAId ? matchup.teamBId : matchup.teamAId;
+    finalMov = mov ?? 0;
   }
-  const loserTeamId = winnerTeamId === matchup.teamAId ? matchup.teamBId : matchup.teamAId;
 
   const existing = await db
     .select()
@@ -129,9 +165,10 @@ export async function submitResultAction(
 
   await db.insert(schema.results).values({
     matchupId,
-    winnerTeamId,
-    loserTeamId,
-    mov,
+    winnerTeamId: finalWinnerTeamId,
+    loserTeamId: finalLoserTeamId,
+    mov: finalMov,
+    isTie,
     submittedAt: new Date().toISOString(),
     submittedByLabel,
   });

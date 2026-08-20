@@ -51,7 +51,7 @@ export default async function HomePage() {
             <tr className="text-left text-walnut-soft border-b border-walnut-faint">
               <th className="py-2 font-normal w-8">#</th>
               <th className="py-2 font-normal">Team</th>
-              <th className="py-2 font-normal text-right w-16">W-L</th>
+              <th className="py-2 font-normal text-right w-16">Record</th>
               <th className="py-2 font-normal text-right w-16">Win%</th>
               <th className="py-2 font-normal text-right w-16">MoV</th>
             </tr>
@@ -84,16 +84,27 @@ export default async function HomePage() {
         ) : (
           <ul className="mt-3 space-y-2 text-sm">
             {recent.map((r) => {
+              const matchup = matchupById.get(r.matchupId);
+              const a = matchup ? teamById.get(matchup.teamAId) : undefined;
+              const b = matchup ? teamById.get(matchup.teamBId) : undefined;
               const winner = teamById.get(r.winnerTeamId);
               const loser = teamById.get(r.loserTeamId);
-              const matchup = matchupById.get(r.matchupId);
               const round = matchup ? roundById.get(matchup.roundId) : undefined;
               const course = round ? courses.find((c) => c.id === round.courseId) : undefined;
               return (
                 <li key={r.id} className="border-b border-walnut-faint/60 pb-2">
                   <span className="text-walnut">
-                    {teamLabel(winner)} def. {teamLabel(loser)}
-                    <span className="text-walnut-soft"> · {formatMov(r.mov)}</span>
+                    {r.isTie ? (
+                      <>
+                        {teamLabel(a)} tied {teamLabel(b)}
+                        <span className="text-walnut-soft"> · all square</span>
+                      </>
+                    ) : (
+                      <>
+                        {teamLabel(winner)} def. {teamLabel(loser)}
+                        <span className="text-walnut-soft"> · {formatMov(r.mov)}</span>
+                      </>
+                    )}
                   </span>
                   <span className="text-walnut-soft block text-xs mt-0.5">
                     {round?.label}
